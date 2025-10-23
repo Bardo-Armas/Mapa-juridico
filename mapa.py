@@ -11,15 +11,30 @@ from streamlit_folium import st_folium
 st.set_page_config(page_title="Geocercas y Zonas", page_icon="🗺️", layout="wide")
 
 def get_db_connection():
-    load_dotenv()
-
-    server = os.getenv('DB_SERVER')
-    database = os.getenv('DB_DATABASE')
-    username = os.getenv('DB_USERNAME')
-    password = os.getenv('DB_PASSWORD')
-    driver = os.getenv('DB_DRIVER', "{ODBC Driver 17 for SQL Server}")
+    # Preferir credenciales desde Streamlit Secrets cuando existan
+    if hasattr(st, "secrets") and "DB_SERVER" in st.secrets:
+        server = st.secrets["DB_SERVER"]
+        database = st.secrets["DB_DATABASE"]
+        username = st.secrets["DB_USERNAME"]
+        password = st.secrets["DB_PASSWORD"]
+        driver = st.secrets.get("DB_DRIVER", "{ODBC Driver 17 for SQL Server}")
+    else:
+        load_dotenv()
+        server = os.getenv("DB_SERVER")
+        database = os.getenv("DB_DATABASE")
+        username = os.getenv("DB_USERNAME")
+        password = os.getenv("DB_PASSWORD")
+        driver = os.getenv("DB_DRIVER", "{ODBC Driver 17 for SQL Server}")
 
     conn_str = f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}"
+
+    # Reutilizar conexión dentro de Streamlit
+    if hasattr(st, "session_state"):
+        if "db_conn" not in st.session_state:
+            st.session_state.db_conn = pyodbc.connect(conn_str)
+        return st.session_state.db_conn
+
+    # Fallback para ejecución fuera de Streamlit
     return pyodbc.connect(conn_str)
 
 def _coerce_latlng(df, lat_col="lat", lng_col="lng"):
@@ -131,3 +146,6 @@ for p in zonas:
 folium.LayerControl(collapsed=False).add_to(m)
 
 st_folium(m, height=900, width=None, returned_objects=[])
+
+if __name__ == "__main__":
+    run_streamlit_app()
